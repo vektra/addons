@@ -63,7 +63,7 @@ func TestWrite(t *testing.T) {
 	})
 
 	n.It("adds a log line to the pump", func() {
-		l.Write(line)
+		l.write(line)
 
 		select {
 		case pumpLine := <-l.Pump:
@@ -79,7 +79,7 @@ func TestWrite(t *testing.T) {
 
 	n.It("adds an error line to the pump if lines were dropped", func() {
 		l.PumpDropped = 1
-		l.Write(line)
+		l.write(line)
 
 		select {
 		case <-l.Pump:
@@ -98,7 +98,7 @@ func TestWrite(t *testing.T) {
 
 	n.It("does not add a log line and increments dropped counter if pump is full ", func() {
 		l.Pump = make(chan []byte, 0)
-		l.Write(line)
+		l.write(line)
 
 		select {
 		case <-l.Pump:
@@ -120,7 +120,7 @@ func TestDial(t *testing.T) {
 
 	l := NewLogger(<-s.Address, false, &TestFormatter{})
 
-	conn, _ := l.Dial()
+	conn, _ := l.dial()
 	_, ok := conn.(net.Conn)
 	defer conn.Close()
 
@@ -151,7 +151,7 @@ func TestSendLogs(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			l.SendLogs()
+			l.sendLogs()
 		}()
 	})
 

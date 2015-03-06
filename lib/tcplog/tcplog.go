@@ -40,8 +40,8 @@ func NewLogger(address string, ssl bool, formatter Formatter) *Logger {
 }
 
 func (l *Logger) Run() {
-	l.SendLogs()
-	defer l.Cleanup()
+	l.sendLogs()
+	defer l.cleanup()
 }
 
 func (l *Logger) Read(message interface{}) (err error) {
@@ -58,10 +58,10 @@ func (l *Logger) Read(message interface{}) (err error) {
 		return errors.New("Unable to read message type")
 	}
 
-	return l.Write(data)
+	return l.write(data)
 }
 
-func (l *Logger) Write(line []byte) (err error) {
+func (l *Logger) write(line []byte) (err error) {
 	if l.PumpClosed == true {
 		return errors.New("Pump is closed")
 	}
@@ -87,7 +87,7 @@ func (l *Logger) Write(line []byte) (err error) {
 	return nil
 }
 
-func (l *Logger) Dial() (conn net.Conn, err error) {
+func (l *Logger) dial() (conn net.Conn, err error) {
 	if l.Ssl == true {
 		config := tls.Config{InsecureSkipVerify: true}
 		conn, err = tls.Dial("tcp", l.Address, &config)
@@ -97,9 +97,9 @@ func (l *Logger) Dial() (conn net.Conn, err error) {
 	return conn, err
 }
 
-func (l *Logger) SendLogs() {
+func (l *Logger) sendLogs() {
 	for {
-		conn, err := l.Dial()
+		conn, err := l.dial()
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue // try to connect again
@@ -118,7 +118,7 @@ func (l *Logger) SendLogs() {
 				conn.Close()
 				time.Sleep(1 * time.Second)
 
-				conn, err = l.Dial()
+				conn, err = l.dial()
 				if err != nil {
 					atomic.AddUint64(&l.ConnDropped, 1)
 					break // try to connect again
@@ -147,7 +147,7 @@ func (l *Logger) SendLogs() {
 	}
 }
 
-func (l *Logger) Cleanup() {
+func (l *Logger) cleanup() {
 	if l.PumpClosed == false {
 		close(l.Pump)
 		l.PumpClosed = true

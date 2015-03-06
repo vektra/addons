@@ -41,8 +41,7 @@ func TestPapertrailRunWithTestServer(t *testing.T) {
 	go s.Run("127.0.0.1")
 
 	l := NewLogger(<-s.Address, false)
-	go l.SendLogs()
-	defer l.Cleanup()
+	go l.Run()
 
 	message := tcplog.NewMessage(t)
 	l.Read(message)
@@ -73,8 +72,7 @@ func TestPapertrailRunWithPapertrailServer(t *testing.T) {
 	}
 
 	l := NewLogger(endpoint, ssl == "true")
-	go l.SendLogs()
-	defer l.Cleanup()
+	go l.Run()
 
 	message := tcplog.NewMessage(t)
 	l.Read(message)
