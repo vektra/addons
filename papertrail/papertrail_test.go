@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vektra/components/lib/tcplog"
-	"github.com/vektra/components/log"
+	"github.com/vektra/addons/tcplog"
+	"github.com/vektra/cypress"
 )
 
 const cEndpoint = "TEST_PAPERTRAIL_URL"
@@ -17,19 +17,19 @@ const cSSL = "TEST_PAPERTRAIL_SSL"
 func TestPapertrailFormat(t *testing.T) {
 	l := NewLogger("", false)
 
-	logMessage := log.Log()
-	logMessage.Add("message", "the message")
-	logMessage.AddString("string_key", "I'm a string!")
-	logMessage.AddInt("int_key", 12)
-	logMessage.AddBytes("bytes_key", []byte("I'm bytes!"))
-	logMessage.AddInterval("interval_key", 2, 1)
+	message := cypress.Log()
+	message.Add("message", "the message")
+	message.AddString("string_key", "I'm a string!")
+	message.AddInt("int_key", 12)
+	message.AddBytes("bytes_key", []byte("I'm bytes!"))
+	message.AddInterval("interval_key", 2, 1)
 
-	actual, err := l.Format(logMessage)
+	actual, err := l.Format(message)
 	if err != nil {
 		t.Errorf("Error formatting: %s", err)
 	}
 
-	timestamp := logMessage.GetTimestamp().Time().Format(cTimeFormat)
+	timestamp := message.GetTimestamp().Time().Format(cTimeFormat)
 
 	expected := fmt.Sprintf("%s 0000000 system * message=\"the message\" string_key=\"I'm a string!\" int_key=12 bytes_key=\"I'm bytes!\" interval_key=:2.000000001\n", timestamp)
 
@@ -37,31 +37,24 @@ func TestPapertrailFormat(t *testing.T) {
 }
 
 func TestPapertrailRunWithTestServer(t *testing.T) {
-	if !log.Available() {
-		t.Skip("Log is not availble.")
-	}
-
 	s := tcplog.NewTcpServer()
 	go s.Run("127.0.0.1")
 
 	l := NewLogger(<-s.Address, false)
-	go l.WatchLogs()
 	go l.SendLogs()
 	defer l.Cleanup()
 
-	logMessage := tcplog.NewLogMessage(t)
-	logMessage.Inject()
-
-	time.Sleep(1 * time.Second)
+	message := tcplog.NewMessage(t)
+	l.Read(message)
 
 	select {
-	case message := <-s.Messages:
-		expected, err := l.Format(logMessage)
+	case m := <-s.Messages:
+		expected, err := l.Format(message)
 		if err != nil {
 			t.Errorf("Error formatting: %s", err)
 		}
 
-		assert.Equal(t, string(expected), string(message))
+		assert.Equal(t, string(expected), string(m))
 
 	case <-time.After(5 * time.Second):
 		t.Errorf("Test server did not get message in time.")
@@ -69,10 +62,6 @@ func TestPapertrailRunWithTestServer(t *testing.T) {
 }
 
 func TestPapertrailRunWithPapertrailServer(t *testing.T) {
-	if !log.Available() {
-		t.Skip("Log is not available.")
-	}
-
 	endpoint := os.Getenv(cEndpoint)
 	if endpoint == "" {
 		t.Skipf("%s is not set.", cEndpoint)
@@ -84,16 +73,15 @@ func TestPapertrailRunWithPapertrailServer(t *testing.T) {
 	}
 
 	l := NewLogger(endpoint, ssl == "true")
-	go l.WatchLogs()
 	go l.SendLogs()
 	defer l.Cleanup()
 
-	logMessage := tcplog.NewLogMessage(t)
-	logMessage.Inject()
+	message := tcplog.NewMessage(t)
+	l.Read(message)
 
 	time.Sleep(10 * time.Second)
 
-	expected, err := l.Format(logMessage)
+	expected, err := l.Format(message)
 	if err != nil {
 		t.Errorf("Error formatting: %s", err)
 	}
