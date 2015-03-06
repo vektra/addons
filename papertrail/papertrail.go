@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"time"
 
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/vektra/addons/lib/tcplog"
 	"github.com/vektra/cypress"
-	"github.com/vektra/uuid"
 )
 
 const cTimeFormat = time.RFC3339Nano
@@ -27,7 +27,7 @@ func (pf *PapertrailFormatter) Format(m *cypress.Message) ([]byte, error) {
 	buf.WriteString(" ")
 
 	if s := m.GetSessionId(); len(s) > 0 {
-		buf.WriteString(uuid.Id(s).String()[0:7])
+		buf.WriteString(uuid.UUID(s).String()[0:7])
 	} else {
 		buf.WriteString("0000000")
 	}
