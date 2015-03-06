@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vektra/components/lib/tcplog"
-	"github.com/vektra/components/log"
+	"github.com/vektra/addons/lib/tcplog"
+	"github.com/vektra/cypress"
 )
 
 const cLogstash = "/usr/local/logstash-1.4.2/bin/logstash"
@@ -21,19 +21,19 @@ const cLogstash = "/usr/local/logstash-1.4.2/bin/logstash"
 func TestLogstashFormat(t *testing.T) {
 	l := NewLogger("", false)
 
-	logMessage := log.Log()
-	logMessage.Add("message", "the message")
-	logMessage.AddString("string_key", "I'm a string!")
-	logMessage.AddInt("int_key", 12)
-	logMessage.AddBytes("bytes_key", []byte("I'm bytes!"))
-	logMessage.AddInterval("interval_key", 2, 1)
+	message := cypress.Log()
+	message.Add("message", "the message")
+	message.AddString("string_key", "I'm a string!")
+	message.AddInt("int_key", 12)
+	message.AddBytes("bytes_key", []byte("I'm bytes!"))
+	message.AddInterval("interval_key", 2, 1)
 
-	actual, err := l.Format(logMessage)
+	actual, err := l.Format(message)
 	if err != nil {
 		t.Errorf("Error formatting: %s", err)
 	}
 
-	timestamp, err := json.Marshal(logMessage.Timestamp)
+	timestamp, err := json.Marshal(message.Timestamp)
 	if err != nil {
 		t.Errorf("Error marshalling timestamp to JSON: %s", err)
 	}
@@ -44,29 +44,23 @@ func TestLogstashFormat(t *testing.T) {
 }
 
 func TestLogstashRunWithTestServer(t *testing.T) {
-	if !log.Available() {
-		t.Skip("Log is not availble.")
-	}
-
 	s := tcplog.NewTcpServer()
 	go s.Run("127.0.0.1")
 
 	l := NewLogger(<-s.Address, false)
-	go l.WatchLogs()
-	go l.SendLogs()
-	defer l.Cleanup()
+	go l.Run()
 
-	logMessage := tcplog.NewLogMessage(t)
-	logMessage.Inject()
+	message := tcplog.NewMessage(t)
+	l.Read(message)
 
 	select {
-	case message := <-s.Messages:
-		expected, err := l.Format(logMessage)
+	case m := <-s.Messages:
+		expected, err := l.Format(message)
 		if err != nil {
 			t.Errorf("Error formatting: %s", err)
 		}
 
-		assert.Equal(t, string(expected), string(message))
+		assert.Equal(t, string(expected), string(m))
 
 	case <-time.After(5 * time.Second):
 		t.Errorf("Test server did not get message in time.")
@@ -74,10 +68,6 @@ func TestLogstashRunWithTestServer(t *testing.T) {
 }
 
 func TestLogstashRunWithLogstashServer(t *testing.T) {
-	if !log.Available() {
-		t.Skip("Log is not available.")
-	}
-
 	// Check for logstash
 	if _, err := os.Stat(cLogstash); err != nil {
 		t.Skip("Logstash is not available.")
@@ -113,16 +103,14 @@ func TestLogstashRunWithLogstashServer(t *testing.T) {
 
 	// Send logs to logstash on found port
 	l := NewLogger("0.0.0.0:"+port, false)
-	go l.WatchLogs()
-	go l.SendLogs()
-	defer l.Cleanup()
+	go l.Run()
 
-	logMessage := tcplog.NewLogMessage(t)
-	logMessage.Inject()
+	message := tcplog.NewMessage(t)
+	l.Read(message)
 
 	time.Sleep(1 * time.Second)
 
-	msg := NewMessage(logMessage)
+	msg := NewMessage(message)
 	expected := msg.Message
 
 	r := bufio.NewReader(stdout)

@@ -3,8 +3,9 @@ package logstash
 import (
 	"encoding/json"
 
-	"github.com/vektra/components/lib/tcplog"
-	"github.com/vektra/components/log"
+	"github.com/vektra/addons/lib/tcplog"
+	"github.com/vektra/cypress"
+	"github.com/vektra/tai64n"
 )
 
 const cNewline = "\n"
@@ -12,20 +13,20 @@ const cNewline = "\n"
 type LogstashFormatter struct{}
 
 type Message struct {
-	Timestamp  *log.TAI64N           `json:"@timestamp,omitempty"`
+	Timestamp  *tai64n.TAI64N        `json:"@timestamp,omitempty"`
 	Type       *uint32               `json:"type,omitempty"`
 	Attributes map[string]*Attribute `json:"attributes,omitempty"`
-	SessionId  []byte                `json:"session_id,omitempty"`
+	SessionId  *string               `json:"session_id,omitempty"`
 	Message    string                `json:"message,omitempty"`
 }
 
-type Attribute log.Attribute
+type Attribute cypress.Attribute
 
 func NewLogger(address string, ssl bool) *tcplog.Logger {
 	return tcplog.NewLogger(address, ssl, &LogstashFormatter{})
 }
 
-func NewMessage(m *log.Message) *Message {
+func NewMessage(m *cypress.Message) *Message {
 	msg := Message{
 		Timestamp:  m.Timestamp,
 		Type:       m.Type,
@@ -34,7 +35,7 @@ func NewMessage(m *log.Message) *Message {
 	}
 
 	for _, a := range m.Attributes {
-		if a.GetKey() == log.PresetKeys["message"] {
+		if a.GetKey() == cypress.PresetKeys["message"] {
 			msg.Message = a.GetSval()
 			continue
 		}
@@ -46,7 +47,7 @@ func NewMessage(m *log.Message) *Message {
 	return &msg
 }
 
-func (lf *LogstashFormatter) Format(m *log.Message) ([]byte, error) {
+func (lf *LogstashFormatter) Format(m *cypress.Message) ([]byte, error) {
 	msg := NewMessage(m)
 
 	bytes, err := json.Marshal(msg)
