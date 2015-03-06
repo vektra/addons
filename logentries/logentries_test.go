@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vektra/components/lib/tcplog"
-	"github.com/vektra/components/log"
+	"github.com/vektra/addons/lib/tcplog"
+	"github.com/vektra/cypress"
 )
 
 const cEndpoint = "TEST_LOGENTRIES_URL"
@@ -19,18 +19,18 @@ const cToken = "TEST_LOGENTRIES_TOKEN"
 func TestLogentriesFormat(t *testing.T) {
 	l := NewLogger("", false, "token")
 
-	logMessage := log.Log()
-	logMessage.AddString("string_key", "I'm a string!")
-	logMessage.AddInt("int_key", 12)
-	logMessage.AddBytes("bytes_key", []byte("I'm bytes!"))
-	logMessage.AddInterval("interval_key", 2, 1)
+	message := cypress.Log()
+	message.AddString("string_key", "I'm a string!")
+	message.AddInt("int_key", 12)
+	message.AddBytes("bytes_key", []byte("I'm bytes!"))
+	message.AddInterval("interval_key", 2, 1)
 
-	actual, err := l.Format(logMessage)
+	actual, err := l.Format(message)
 	if err != nil {
 		t.Errorf("Error formatting: %s", err)
 	}
 
-	timestamp, err := json.Marshal(logMessage.Timestamp)
+	timestamp, err := json.Marshal(message.Timestamp)
 	if err != nil {
 		t.Errorf("Error marshalling timestamp to JSON: %s", err)
 	}
@@ -41,29 +41,23 @@ func TestLogentriesFormat(t *testing.T) {
 }
 
 func TestLogentriesRunWithTestServer(t *testing.T) {
-	if !log.Available() {
-		t.Skip("Log is not availble.")
-	}
-
 	s := tcplog.NewTcpServer()
 	go s.Run("127.0.0.1")
 
 	l := NewLogger(<-s.Address, false, "token")
-	go l.WatchLogs()
-	go l.SendLogs()
-	defer l.Cleanup()
+	go l.Run()
 
-	logMessage := tcplog.NewLogMessage(t)
-	logMessage.Inject()
+	message := tcplog.NewMessage(t)
+	l.Read(message)
 
 	select {
-	case message := <-s.Messages:
-		expected, err := l.Format(logMessage)
+	case m := <-s.Messages:
+		expected, err := l.Format(message)
 		if err != nil {
 			t.Errorf("Error formatting: %s", err)
 		}
 
-		assert.Equal(t, string(expected), string(message))
+		assert.Equal(t, string(expected), string(m))
 
 	case <-time.After(5 * time.Second):
 		t.Errorf("Test server did not get message in time.")
@@ -71,10 +65,6 @@ func TestLogentriesRunWithTestServer(t *testing.T) {
 }
 
 func TestLogentriesRunWithLogentriesServer(t *testing.T) {
-	if !log.Available() {
-		t.Skip("log is not available.")
-	}
-
 	endpoint := os.Getenv(cEndpoint)
 	if endpoint == "" {
 		t.Skipf("%s is not set.", cEndpoint)
@@ -91,16 +81,14 @@ func TestLogentriesRunWithLogentriesServer(t *testing.T) {
 	}
 
 	l := NewLogger(endpoint, ssl == "true", token)
-	go l.WatchLogs()
-	go l.SendLogs()
-	defer l.Cleanup()
+	go l.Run()
 
-	logMessage := tcplog.NewLogMessage(t)
-	logMessage.Inject()
+	message := tcplog.NewMessage(t)
+	l.Read(message)
 
 	time.Sleep(10 * time.Second)
 
-	expected, err := l.Format(logMessage)
+	expected, err := l.Format(message)
 	if err != nil {
 		t.Errorf("Error formatting: %s", err)
 	}

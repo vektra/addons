@@ -3,8 +3,8 @@ package logentries
 import (
 	"encoding/json"
 
-	"github.com/vektra/components/lib/tcplog"
-	"github.com/vektra/components/log"
+	"github.com/vektra/addons/lib/tcplog"
+	"github.com/vektra/cypress"
 )
 
 const cNewline = "\n"
@@ -17,8 +17,10 @@ func NewLogger(address string, ssl bool, token string) *tcplog.Logger {
 	return tcplog.NewLogger(address, ssl, &LogentriesFormatter{token})
 }
 
-func (lf *LogentriesFormatter) Format(m *log.Message) ([]byte, error) {
-	m.Add("token", lf.Token)
+func (lf *LogentriesFormatter) Format(m *cypress.Message) ([]byte, error) {
+	if _, ok := m.Get("token"); !ok {
+		m.Add("token", lf.Token)
+	}
 
 	bytes, err := json.Marshal(m)
 	if err != nil {
