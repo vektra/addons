@@ -1,0 +1,150 @@
+package tcplog
+
+import (
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"net"
+	"sync/atomic"
+	"time"
+
+	"github.com/vektra/components/log"
+)
+
+const cBufferSize = 100
+
+type Formatter interface {
+	Format(m *log.Message) ([]byte, error)
+}
+
+type Logger struct {
+	Formatter
+	Address     string
+	Ssl         bool
+	Pump        chan []byte
+	PumpClosed  bool
+	PumpDropped uint64
+	ConnDropped uint64
+}
+
+func NewLogger(address string, ssl bool, formatter Formatter) *Logger {
+	return &Logger{
+		Formatter:   formatter,
+		Address:     address,
+		Ssl:         ssl,
+		Pump:        make(chan []byte, cBufferSize),
+		PumpClosed:  false,
+		PumpDropped: 0,
+		ConnDropped: 0,
+	}
+}
+
+func (l *Logger) Run() {
+	go l.WatchLogs()
+	l.SendLogs()
+	defer l.Cleanup()
+}
+
+func (l *Logger) WatchLogs() {
+	log.WatchLocal(l)
+}
+
+func (l *Logger) Read(m *log.Message) (err error) {
+	data, _ := l.Format(m)
+
+	return l.Write(data)
+}
+
+func (l *Logger) Write(line []byte) (err error) {
+	if l.PumpClosed == true {
+		return errors.New("Pump is closed")
+	}
+
+	select {
+	case l.Pump <- line:
+		if pumpDropped := atomic.LoadUint64(&l.PumpDropped); pumpDropped > 0 {
+			logMessage := log.Log()
+			logMessage.Add("error", fmt.Sprintf("The tcplog pump dropped %d lines", pumpDropped))
+			data, _ := l.Format(logMessage)
+
+			select {
+			case l.Pump <- data:
+				atomic.AddUint64(&l.PumpDropped, -pumpDropped)
+			default:
+				return
+			}
+		}
+	default:
+		atomic.AddUint64(&l.PumpDropped, 1)
+	}
+
+	return nil
+}
+
+func (l *Logger) Dial() (conn net.Conn, err error) {
+	if l.Ssl == true {
+		config := tls.Config{InsecureSkipVerify: true}
+		conn, err = tls.Dial("tcp", l.Address, &config)
+	} else {
+		conn, err = net.Dial("tcp", l.Address)
+	}
+	return conn, err
+}
+
+func (l *Logger) SendLogs() {
+	for {
+		conn, err := l.Dial()
+
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue // try to connect again
+		}
+
+		for {
+			line, ok := <-l.Pump
+			if ok != true {
+				conn.Close()
+				return // chan closed, end processing
+			}
+
+			_, err = conn.Write(line)
+
+			if err != nil {
+				conn.Close()
+				time.Sleep(1 * time.Second)
+
+				conn, err = l.Dial()
+				if err != nil {
+					atomic.AddUint64(&l.ConnDropped, 1)
+					break // try to connect again
+				}
+
+				_, err = conn.Write(line)
+				if err != nil {
+					atomic.AddUint64(&l.ConnDropped, 1)
+					break // try to connect again
+				}
+			}
+
+			if connDropped := atomic.LoadUint64(&l.ConnDropped); connDropped > 0 {
+				logMessage := log.Log()
+				logMessage.Add("error", fmt.Sprintf("The tcplog connection dropped %d lines", connDropped))
+				data, _ := l.Format(logMessage)
+
+				_, err = conn.Write(data)
+				if err == nil {
+					atomic.AddUint64(&l.ConnDropped, -connDropped)
+				}
+			}
+		}
+
+		conn.Close()
+	}
+}
+
+func (l *Logger) Cleanup() {
+	if l.PumpClosed == false {
+		close(l.Pump)
+		l.PumpClosed = true
+	}
+}
