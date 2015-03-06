@@ -2,12 +2,11 @@ package tcplog
 
 import (
 	"crypto/rand"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"testing"
 
-	"github.com/vektra/components/log"
+	"github.com/vektra/cypress"
 )
 
 func randString(n int) string {
@@ -20,29 +19,27 @@ func randString(n int) string {
 	return string(bytes)
 }
 
-func NewLogMessage(t *testing.T) *log.Message {
-	logMessage := log.Log()
-	err := logMessage.Add("message", randString(50))
-	err = logMessage.AddString("string_key", "I'm a string!")
-	err = logMessage.AddInt("int_key", 12)
-	err = logMessage.AddBytes("bytes_key", []byte("I'm bytes!"))
-	err = logMessage.AddInterval("interval_key", 2, 1)
+func NewMessage(t *testing.T) *cypress.Message {
+	message := cypress.Log()
+	err := message.Add("message", randString(50))
+	err = message.AddString("string_key", "I'm a string!")
+	err = message.AddInt("int_key", 12)
+	err = message.AddBytes("bytes_key", []byte("I'm bytes!"))
+	err = message.AddInterval("interval_key", 2, 1)
 	if err != nil {
 		t.Errorf("Error adding message: %s", err)
 	}
-	return logMessage
+	return message
 }
 
 type TcpServer struct {
 	Port     int
-	Ssl      bool
 	Address  chan string
 	Messages chan []byte
 }
 
 func NewTcpServer() *TcpServer {
 	return &TcpServer{
-		Ssl:      false,
 		Address:  make(chan string, 1),
 		Messages: make(chan []byte, 1),
 	}
@@ -54,13 +51,7 @@ func (s *TcpServer) Run(host string) {
 		err error
 	)
 
-	if s.Ssl {
-		// need tls cert
-		config := tls.Config{InsecureSkipVerify: true}
-		ln, err = tls.Listen("tcp", "", &config)
-	} else {
-		ln, err = net.Listen("tcp", "")
-	}
+	ln, err = net.Listen("tcp", "")
 
 	if err != nil {
 		fmt.Println(err)

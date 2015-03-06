@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vektra/components/log"
+	"github.com/vektra/cypress"
 	"github.com/vektra/neko"
 )
 
 type TestFormatter struct{}
 
-func (tf *TestFormatter) Format(m *log.Message) ([]byte, error) {
+func (tf *TestFormatter) Format(m *cypress.Message) ([]byte, error) {
 	return []byte(m.KVString()), nil
 }
 
@@ -35,7 +35,10 @@ func TestWrite(t *testing.T) {
 		select {
 		case pumpLine := <-l.Pump:
 			assert.Equal(t, line, pumpLine)
-			assert.Equal(t, 0, l.PumpDropped)
+
+			var zero uint64 = 0
+
+			assert.Equal(t, zero, l.PumpDropped)
 		default:
 			t.Fail()
 		}
@@ -47,11 +50,14 @@ func TestWrite(t *testing.T) {
 
 		select {
 		case <-l.Pump:
-			expected := "The tcplog pump dropped 1 lines"
+			expected := "The tcplog pump dropped 1 log lines"
 			actual := <-l.Pump
 
 			assert.True(t, strings.Index(string(actual), expected) != -1)
-			assert.Equal(t, 0, l.PumpDropped)
+
+			var zero uint64 = 0
+
+			assert.Equal(t, zero, l.PumpDropped)
 		default:
 			t.Fail()
 		}
@@ -65,14 +71,16 @@ func TestWrite(t *testing.T) {
 		case <-l.Pump:
 			t.Fail()
 		default:
-			assert.Equal(t, 1, l.PumpDropped)
+			var one uint64 = 1
+
+			assert.Equal(t, one, l.PumpDropped)
 		}
 	})
 
 	n.Meow()
 }
 
-func TestDialWhenSslFalse(t *testing.T) {
+func TestDial(t *testing.T) {
 	s := NewTcpServer()
 
 	go s.Run("127.0.0.1")
@@ -81,23 +89,10 @@ func TestDialWhenSslFalse(t *testing.T) {
 
 	conn, _ := l.Dial()
 	_, ok := conn.(net.Conn)
+	defer conn.Close()
 
 	assert.True(t, ok, "returns a connection")
 }
-
-// func TestDialWhenSslTrue(t *testing.T) {
-// 	s := NewTcpServer()
-// 	s.Ssl = true
-
-// 	go s.Run()
-
-// 	l := NewLogger(<-s.Address, true, &TestFormatter{})
-
-// 	conn, _ := l.Dial()
-// 	_, ok := conn.(net.Conn)
-
-// 	assert.True(t, ok, "returns a connection")
-// }
 
 func TestSendLogs(t *testing.T) {
 	n := neko.Start(t)
@@ -140,19 +135,6 @@ func TestSendLogs(t *testing.T) {
 			t.Fail()
 		}
 	})
-
-	// n.It("increments dropped counter if tcp write fails", func() {
-	// 	l.ConnDropped = 0
-
-	// 	// make write fail ?
-
-	// 	l.Pump <- line
-	// 	close(l.Pump)
-
-	// 	wg.Wait()
-
-	// 	assert.Equal(t, 1, l.ConnDropped)
-	// })
 
 	n.Meow()
 }
