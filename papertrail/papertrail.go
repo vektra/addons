@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/vektra/addons/tcplog"
+	"github.com/vektra/addons/lib/tcplog"
 	"github.com/vektra/components/lib/request"
 	"github.com/vektra/cypress"
 )

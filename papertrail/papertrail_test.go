@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vektra/addons/tcplog"
+	"github.com/vektra/addons/lib/tcplog"
 	"github.com/vektra/cypress"
 )
 
