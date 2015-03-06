@@ -17,6 +17,39 @@ func (tf *TestFormatter) Format(m *cypress.Message) ([]byte, error) {
 	return []byte(m.KVString()), nil
 }
 
+func TestRead(t *testing.T) {
+	n := neko.Start(t)
+
+	var l *Logger
+
+	n.Setup(func() {
+		l = NewLogger("", false, &TestFormatter{})
+	})
+
+	n.It("reads a byte slice", func() {
+		ok := l.Read([]byte("This is a long line"))
+		assert.NoError(t, ok)
+	})
+
+	n.It("reads a string", func() {
+		ok := l.Read("This is a long line")
+		assert.NoError(t, ok)
+	})
+
+	n.It("reads a cypress.Message", func() {
+		message := NewMessage(t)
+		ok := l.Read(message)
+		assert.NoError(t, ok)
+	})
+
+	n.It("does not read an int", func() {
+		ok := l.Read(1)
+		assert.Error(t, ok)
+	})
+
+	n.Meow()
+}
+
 func TestWrite(t *testing.T) {
 	n := neko.Start(t)
 

@@ -44,8 +44,19 @@ func (l *Logger) Run() {
 	defer l.Cleanup()
 }
 
-func (l *Logger) Read(m *cypress.Message) (err error) {
-	data, _ := l.Format(m)
+func (l *Logger) Read(message interface{}) (err error) {
+	var data []byte
+
+	switch m := message.(type) {
+	case []byte:
+		data = m
+	case string:
+		data = []byte(m)
+	case *cypress.Message:
+		data, _ = l.Format(m)
+	default:
+		return errors.New("Unable to read message type")
+	}
 
 	return l.Write(data)
 }
