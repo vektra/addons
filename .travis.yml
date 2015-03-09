@@ -3,3 +3,6 @@ go:
 - '1.3'
 - '1.4'
 - tip
+notifications:
+  slack:
+    secure: kZWHcCK+abP5kpjkS9Z49D/U/aKckE/KZ7EjGOvTcitLnryTFu1oWwznuLTpODLEkeS201XTvwAh9pdeMZ8i3A2WyUGVT9jJRRYMml7cIX3otsQQf4TLLeQkL/Fz6LvdRdwhNTU8D19OPLrgq5bHfkZxejvzZn3Ep+79fb5+Dj4=
