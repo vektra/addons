@@ -11,6 +11,7 @@ import (
 	"github.com/vektra/cypress"
 )
 
+const cTimeFormat = time.RFC3339Nano
 const cEndpoint = "TEST_PAPERTRAIL_URL"
 const cSSL = "TEST_PAPERTRAIL_SSL"
 

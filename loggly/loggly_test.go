@@ -11,6 +11,7 @@ import (
 	"github.com/vektra/cypress"
 )
 
+const cTimeFormat = time.RFC3339Nano
 const cEndpoint = "TEST_LOGGLY_URL"
 const cSSL = "TEST_LOGGLY_SSL"
 const cToken = "TEST_LOGENTRIES_TOKEN"
