@@ -19,9 +19,11 @@ func NewLogger(address string, ssl bool, token string, pen string) *tcplog.Logge
 func (lf *LogglyFormatter) Format(m *cypress.Message) ([]byte, error) {
 	var buf bytes.Buffer
 
+	buf.WriteString("<34>1 ") // Need this for loggly to accept. Keep hardcoded?
+
 	buf.WriteString(m.SyslogString(false, false))
 
-	buf.WriteString("[")
+	buf.WriteString(" [")
 	buf.WriteString(lf.Token)
 	buf.WriteString("@")
 	buf.WriteString(lf.PEN)

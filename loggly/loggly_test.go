@@ -14,8 +14,8 @@ import (
 const cTimeFormat = time.RFC3339Nano
 const cEndpoint = "TEST_LOGGLY_URL"
 const cSSL = "TEST_LOGGLY_SSL"
-const cToken = "TEST_LOGENTRIES_TOKEN"
-const cPEN = "TEST_LOGENTRIES_PEN"
+const cToken = "TEST_LOGGLY_TOKEN"
+const cPEN = "TEST_LOGGLY_PEN"
 
 func TestLogglyFormat(t *testing.T) {
 	l := NewLogger("", false, "token", "pen")
