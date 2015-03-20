@@ -44,6 +44,10 @@ func (l *Logger) Run() {
 	defer l.cleanup()
 }
 
+func (l *Logger) Receive(message *cypress.Message) error {
+	return l.Read(message)
+}
+
 func (l *Logger) Read(message interface{}) (err error) {
 	var data []byte
 
