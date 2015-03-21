@@ -38,7 +38,7 @@ func TestLogstashFormat(t *testing.T) {
 		t.Errorf("Error marshalling timestamp to JSON: %s", err)
 	}
 
-	expected := fmt.Sprintf("{\"@timestamp\":%s,\"type\":0,\"attributes\":{\"bytes_key\":{\"value\":\"SSdtIGJ5dGVzIQ==\",\"_bytes\":\"\"},\"int_key\":12,\"interval_key\":{\"seconds\":2,\"nanoseconds\":1},\"string_key\":\"I'm a string!\"},\"message\":\"the message\"}\n", timestamp)
+	expected := fmt.Sprintf("{\"@timestamp\":%s,\"@type\":\"log\",\"@version\":\"1\",\"bytes_key\":{\"bytes\":\"SSdtIGJ5dGVzIQ==\"},\"int_key\":12,\"interval_key\":{\"nanoseconds\":1,\"seconds\":2},\"message\":\"the message\",\"string_key\":\"I'm a string!\"}\n", timestamp)
 
 	assert.Equal(t, expected, string(actual))
 }
@@ -110,8 +110,8 @@ func TestLogstashRunWithLogstashServer(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg := NewMessage(message)
-	expected := msg.Message
+	expected, err := json.Marshal(message)
+	expected = append(expected, []byte(cNewline)...)
 
 	r := bufio.NewReader(stdout)
 	out, _, err := r.ReadLine() // throw away first line

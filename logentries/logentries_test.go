@@ -20,6 +20,7 @@ func TestLogentriesFormat(t *testing.T) {
 	l := NewLogger("", false, "token")
 
 	message := cypress.Log()
+	message.Add("message", "the message")
 	message.AddString("string_key", "I'm a string!")
 	message.AddInt("int_key", 12)
 	message.AddBytes("bytes_key", []byte("I'm bytes!"))
@@ -35,7 +36,7 @@ func TestLogentriesFormat(t *testing.T) {
 		t.Errorf("Error marshalling timestamp to JSON: %s", err)
 	}
 
-	expected := fmt.Sprintf("{\"timestamp\":%s,\"type\":0,\"attributes\":[{\"string_key\":\"I'm a string!\"},{\"int_key\":12},{\"bytes_key\":\"SSdtIGJ5dGVzIQ==\",\"_bytes\":\"\"},{\"interval_key\":{\"seconds\":2,\"nanoseconds\":1}},{\"token\":\"token\"}]}\n", timestamp)
+	expected := fmt.Sprintf("{\"@timestamp\":%s,\"@type\":\"log\",\"@version\":\"1\",\"bytes_key\":{\"bytes\":\"SSdtIGJ5dGVzIQ==\"},\"int_key\":12,\"interval_key\":{\"nanoseconds\":1,\"seconds\":2},\"message\":\"the message\",\"string_key\":\"I'm a string!\",\"token\":\"token\"}\n", timestamp)
 
 	assert.Equal(t, expected, string(actual))
 }
