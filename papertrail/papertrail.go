@@ -1,11 +1,13 @@
 package papertrail
 
 import (
-	"bytes"
+	"encoding/json"
 
 	"github.com/vektra/addons/lib/tcplog"
 	"github.com/vektra/cypress"
 )
+
+const cNewline = "\n"
 
 type PapertrailFormatter struct{}
 
@@ -14,11 +16,12 @@ func NewLogger(address string, ssl bool) *tcplog.Logger {
 }
 
 func (pf *PapertrailFormatter) Format(m *cypress.Message) ([]byte, error) {
-	var buf bytes.Buffer
+	bytes, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
 
-	buf.WriteString(m.SyslogString(false, false))
+	bytes = append(bytes, []byte(cNewline)...)
 
-	buf.WriteString("\n")
-
-	return buf.Bytes(), nil
+	return bytes, nil
 }

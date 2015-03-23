@@ -32,7 +32,7 @@ func TestPapertrailFormat(t *testing.T) {
 
 	timestamp := message.GetTimestamp().Time().Format(cTimeFormat)
 
-	expected := fmt.Sprintf("%s 0000000 system * message=\"the message\" string_key=\"I'm a string!\" int_key=12 bytes_key=\"I'm bytes!\" interval_key=:2.000000001\n", timestamp)
+	expected := fmt.Sprintf("{\"@timestamp\":\"%s\",\"@type\":\"log\",\"@version\":\"1\",\"bytes_key\":{\"bytes\":\"SSdtIGJ5dGVzIQ==\"},\"int_key\":12,\"interval_key\":{\"nanoseconds\":1,\"seconds\":2},\"message\":\"the message\",\"string_key\":\"I'm a string!\"}\n", timestamp)
 
 	assert.Equal(t, expected, string(actual))
 }
