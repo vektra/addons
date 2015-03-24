@@ -1,33 +1,43 @@
 package loggly
 
 import (
-	"bytes"
+	"encoding/json"
 
-	"github.com/vektra/addons/lib/tcplog"
+	client "github.com/segmentio/go-loggly"
 	"github.com/vektra/cypress"
 )
 
-type LogglyFormatter struct {
-	Token string
-	PEN   string
+const cNewline = "\n"
+
+type Logger struct {
+	*client.Client
 }
 
-func NewLogger(address string, ssl bool, token string, pen string) *tcplog.Logger {
-	return tcplog.NewLogger(address, ssl, &LogglyFormatter{token, pen})
+func NewLogger(token string) *Logger {
+	return &Logger{client.New(token)}
 }
 
-func (lf *LogglyFormatter) Format(m *cypress.Message) ([]byte, error) {
-	var buf bytes.Buffer
+func (l *Logger) Format(m *cypress.Message) ([]byte, error) {
+	bytes, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
 
-	buf.WriteString(m.SyslogString(false, false))
+	bytes = append(bytes, []byte(cNewline)...)
 
-	buf.WriteString("[")
-	buf.WriteString(lf.Token)
-	buf.WriteString("@")
-	buf.WriteString(lf.PEN)
-	buf.WriteString("]")
+	return bytes, nil
+}
 
-	buf.WriteString("\n")
+func (l *Logger) Receive(message *cypress.Message) error {
+	bytes, err := l.Format(message)
+	if err != nil {
+		return err
+	}
 
-	return buf.Bytes(), nil
+	_, err = l.Write(bytes)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
