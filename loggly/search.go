@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/google/go-querystring/query"
 	"github.com/vektra/cypress"
@@ -184,9 +185,7 @@ func (api *APIClient) Generate() (*cypress.Message, error) {
 	select {
 
 	case event := <-api.EventBuffer:
-
 		var message *cypress.Message
-
 		err := json.Unmarshal([]byte(event.Logmsg), message)
 		if err != nil {
 			message = cypress.Log()
@@ -195,14 +194,24 @@ func (api *APIClient) Generate() (*cypress.Message, error) {
 
 		return message, nil
 
+	case <-time.After(time.Second * 1):
+		return nil, nil
+
 	default:
-		events, err := api.Search(&RSIDOptions{}, &EventsOptions{})
+		events, err := api.Search(api.RSIDOptions, api.EventsOptions)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, event := range events {
-			api.EventBuffer <- event
+			select {
+
+			case api.EventBuffer <- event:
+				api.EventsOptions.Page = api.EventsOptions.Page + 1
+
+			case <-time.After(time.Second * 1):
+				break
+			}
 		}
 
 		return api.Generate()
