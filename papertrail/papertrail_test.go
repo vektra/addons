@@ -2,7 +2,6 @@ package papertrail
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -59,31 +58,4 @@ func TestPapertrailRunWithTestServer(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Errorf("Test server did not get message in time.")
 	}
-}
-
-func TestPapertrailRunWithPapertrailServer(t *testing.T) {
-	endpoint := os.Getenv(cEndpoint)
-	if endpoint == "" {
-		t.Skipf("%s is not set.", cEndpoint)
-	}
-
-	ssl := os.Getenv(cSSL)
-	if ssl == "" {
-		ssl = "true"
-	}
-
-	l := NewLogger(endpoint, ssl == "true")
-	go l.Run()
-
-	message := tcplog.NewMessage(t)
-	l.Read(message)
-
-	time.Sleep(10 * time.Second)
-
-	expected, err := l.Format(message)
-	if err != nil {
-		t.Errorf("Error formatting: %s", err)
-	}
-
-	t.Logf("Check '%s' got message:\n%s", endpoint, expected)
 }
