@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/google/go-querystring/query"
 	"github.com/vektra/cypress"
@@ -114,20 +115,36 @@ func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
 	}
 }
 
+func milliseconds(t time.Time) int {
+	nanos := t.UnixNano()
+	millis := nanos / 1000000
+	return int(millis)
+}
+
 func (api *APIClient) Generate() (*cypress.Message, error) {
 	select {
 
 	case event := <-api.EventBuffer:
 		return event, nil
 
+	case <-time.After(time.Second * 1):
+		return nil, nil
+
 	default:
-		events, err := api.Search(&EventsOptions{})
+		events, err := api.Search(api.Options)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, event := range events {
-			api.EventBuffer <- event
+			select {
+
+			case api.EventBuffer <- event:
+				api.Options.Start = milliseconds(event.GetTimestamp().Time())
+
+			case <-time.After(time.Second * 1):
+				break
+			}
 		}
 
 		return api.Generate()
