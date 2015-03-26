@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/google/go-querystring/query"
 	"github.com/vektra/cypress"
@@ -26,11 +27,11 @@ type EventsOptions struct {
 	MaxId    string `url:"max_id,omitempty"`
 	MinTime  string `url:"min_time,omitempty"`
 	MaxTime  string `url:"max_time,omitempty"`
-	Tail     string `url:"tail,omitempty"`
+	Tail     bool   `url:"tail,omitempty"`
 }
 
 type EventsResponse struct {
-	Events           *[]Event `json:"events"`
+	Events           []*Event `json:"events"`
 	MinId            string   `json:"min_id"`
 	MaxId            string   `json:"max_id"`
 	ReachedBeginning bool     `json:"reached_beginning"`
@@ -59,7 +60,7 @@ func NewAPIClient(token string, options *EventsOptions, bufferSize int) *APIClie
 	}
 }
 
-func (api *APIClient) Search(o *EventsOptions) (*[]Event, error) {
+func (api *APIClient) Search(o *EventsOptions) ([]*Event, error) {
 	url := cAPIRoot
 
 	v, _ := query.Values(o)
@@ -101,25 +102,33 @@ func (api *APIClient) Generate() (*cypress.Message, error) {
 	select {
 
 	case event := <-api.EventBuffer:
-
-		var message *cypress.Message
-
-		err := json.Unmarshal([]byte(event.Message), message)
+		var message cypress.Message
+		err := json.Unmarshal([]byte(event.Message), &message)
 		if err != nil {
-			message = cypress.Log()
+			message = *cypress.Log()
 			message.Add("message", event.Message)
 		}
 
-		return message, nil
+		return &message, nil
+
+	case <-time.After(time.Second * 1):
+		return nil, nil
 
 	default:
-		events, err := api.Search(&EventsOptions{})
+		events, err := api.Search(api.Options)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, event := range *events {
-			api.EventBuffer <- &event
+		for _, event := range events {
+			select {
+
+			case api.EventBuffer <- event:
+				api.Options.MinId = event.Id
+
+			case <-time.After(time.Second * 1):
+				break
+			}
 		}
 
 		return api.Generate()
@@ -127,6 +136,6 @@ func (api *APIClient) Generate() (*cypress.Message, error) {
 }
 
 func (api *APIClient) Close() error {
-	// need to do anything here?
+	close(api.EventBuffer)
 	return nil
 }

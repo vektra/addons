@@ -39,7 +39,8 @@ func TestPapertrailAPIGenerate(t *testing.T) {
 
 	// Read back message from papertrail
 
-	options := &EventsOptions{}
+	q, _ := expected.GetString("message")
+	options := &EventsOptions{Q: q, Tail: false}
 	api := NewAPIClient(token, options, 100)
 
 	actual, err := api.Generate()
