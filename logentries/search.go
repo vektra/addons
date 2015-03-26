@@ -95,14 +95,15 @@ func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
 
 		for i := 0; i < len(logs)-1; i++ {
 			log := logs[i]
-			var message cypress.Message
+			var message *cypress.Message
 
-			err = json.Unmarshal(log, &message)
+			err = json.Unmarshal(log, message)
 			if err != nil {
-				return nil, err
+				message = cypress.Log()
+				message.Add("message", log)
 			}
 
-			events = append(events, &message)
+			events = append(events, message)
 		}
 
 		return events, nil
