@@ -2,12 +2,10 @@ package loggly
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vektra/addons/lib/tcplog"
 	"github.com/vektra/cypress"
 )
 
@@ -37,24 +35,4 @@ func TestLogglyFormat(t *testing.T) {
 	expected := fmt.Sprintf("{\"@timestamp\":\"%s\",\"@type\":\"log\",\"@version\":\"1\",\"bytes_key\":{\"bytes\":\"SSdtIGJ5dGVzIQ==\"},\"int_key\":12,\"interval_key\":{\"nanoseconds\":1,\"seconds\":2},\"message\":\"the message\",\"string_key\":\"I'm a string!\"}\n", timestamp)
 
 	assert.Equal(t, expected, string(actual))
-}
-
-func TestLogglyWithLogglyServer(t *testing.T) {
-	token := os.Getenv(cToken)
-	if token == "" {
-		t.Skipf("%s is not set.", cToken)
-	}
-	l := NewLogger(token)
-
-	message := tcplog.NewMessage(t)
-	l.Receive(message)
-
-	time.Sleep(10 * time.Second)
-
-	expected, err := l.Format(message)
-	if err != nil {
-		t.Errorf("Error formatting: %s", err)
-	}
-
-	t.Logf("Check Loggly got message:\n%s", expected)
 }

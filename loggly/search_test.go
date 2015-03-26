@@ -3,9 +3,10 @@ package loggly
 import (
 	"os"
 	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/vektra/cypress"
+	"github.com/stretchr/testify/require"
+	"github.com/vektra/addons/lib/tcplog"
 )
 
 const cAccount = "TEST_LOGGLY_ACCOUNT"
@@ -13,6 +14,11 @@ const cUsername = "TEST_LOGGLY_USERNAME"
 const cPassword = "TEST_LOGGLY_PASSWORD"
 
 func TestLogglyAPIClientGenerate(t *testing.T) {
+	token := os.Getenv(cToken)
+	if token == "" {
+		t.Skipf("%s is not set.", cToken)
+	}
+
 	account := os.Getenv(cAccount)
 	if account == "" {
 		t.Skipf("%s is not set.", cAccount)
@@ -28,17 +34,34 @@ func TestLogglyAPIClientGenerate(t *testing.T) {
 		t.Skipf("%s is not set.", cPassword)
 	}
 
-	ro := &RSIDOptions{}
+	// Send message to loggly
+
+	l := NewLogger(token)
+
+	expected := tcplog.NewMessage(t)
+	l.Receive(expected)
+
+	time.Sleep(20 * time.Second)
+
+	// Read back message from loggly
+
+	ro := &RSIDOptions{Size: 1}
 	eo := &EventsOptions{}
 	api, err := NewAPIClient(account, username, password, ro, eo, 100)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
-	message, err := api.Generate()
-	if err != nil {
-		panic(err)
-	}
+	actual, err := api.Generate()
+	require.NoError(t, err)
 
-	assert.Equal(t, &cypress.Message{}, message)
+	// Make sure its the same message
+
+	require.Equal(t, expected.GetTimestamp().Time(), actual.GetTimestamp().Time())
+	require.Equal(t, expected.GetVersion(), actual.GetVersion())
+	require.Equal(t, expected.GetSessionId(), actual.GetSessionId())
+	require.Equal(t, expected.GetTags(), actual.GetTags())
+
+	expectedMessage, _ := expected.GetString("message")
+	actualMessage, _ := actual.GetString("message")
+
+	require.Equal(t, expectedMessage, actualMessage)
 }
