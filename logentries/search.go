@@ -17,24 +17,10 @@ import (
 const cAPIRoot = "https://pull.logentries.com"
 
 type APIClient struct {
+	*http.Client
 	RootURL     string
 	Options     *EventsOptions
 	EventBuffer chan *cypress.Message
-}
-
-func NewAPIClient(key, host, log string, options *EventsOptions, bufferSize int) (*APIClient, error) {
-	root := fmt.Sprintf("%s/%s/hosts/%s/%s/", cAPIRoot, key, host, log)
-
-	url, err := url.Parse(root)
-	if err != nil {
-		return nil, err
-	}
-
-	return &APIClient{
-		RootURL:     url.String(),
-		Options:     options,
-		EventBuffer: make(chan *cypress.Message, bufferSize),
-	}, nil
 }
 
 type EventsOptions struct {
@@ -50,22 +36,54 @@ type EventsResponse struct {
 	Events   []*cypress.Message
 }
 
-func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
+func NewAPIClient(key, host, log string, options *EventsOptions, bufferSize int) (*APIClient, error) {
+	root := fmt.Sprintf("%s/%s/hosts/%s/%s/", cAPIRoot, key, host, log)
+
+	url, err := url.Parse(root)
+	if err != nil {
+		return nil, err
+	}
+
+	return &APIClient{
+		Client:      &http.Client{},
+		RootURL:     url.String(),
+		Options:     options,
+		EventBuffer: make(chan *cypress.Message, bufferSize),
+	}, nil
+}
+
+func (api *APIClient) SetDefaultOptions(o *EventsOptions) *EventsOptions {
+	if o.Start == 0 {
+		o.Start = api.Options.Start
+	}
+	if o.End == 0 {
+		o.End = api.Options.End
+	}
+	if o.Filter == "" {
+		o.Filter = api.Options.Filter
+	}
+	if o.Limit == 0 {
+		o.Limit = api.Options.Limit
+	}
+
+	return o
+}
+
+func (api *APIClient) EncodeURL(o *EventsOptions) string {
 	url := api.RootURL
 
 	v, _ := query.Values(o)
 	if q := v.Encode(); q != "" {
 		url = url + "?" + q
-
-	} else {
-		// Use default options
-		v, _ = query.Values(api.Options)
-		if q = v.Encode(); q != "" {
-			url = url + "?" + q
-		}
 	}
 
-	resp, err := http.Get(url)
+	return url
+}
+
+func (api *APIClient) GetBody(url string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+
+	resp, err := api.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -76,10 +94,12 @@ func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
 		return nil, err
 	}
 
-	var events EventsResponse
-	err = json.Unmarshal(body, &events)
+	return body, err
+}
 
-	fmt.Println(string(body))
+func NewEvents(body []byte) ([]*cypress.Message, error) {
+	var events EventsResponse
+	err := json.Unmarshal(body, &events)
 
 	if err == nil {
 		if events.Response == "error" {
@@ -90,37 +110,65 @@ func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
 			return nil, errors.New("Logentires error: No events")
 		}
 
-	} else if err.Error() == "invalid character '{' after top-level value" {
+	} else {
 		// Log lines sent back verbatim, not proper JSON
 		logs := bytes.Split(body, []byte("\n"))
 
 		var events []*cypress.Message
 
-		for i := 0; i < len(logs)-1; i++ {
-			log := logs[i]
-			var message cypress.Message
+		for _, log := range logs {
+			if string(log) != "" {
+				var message cypress.Message
 
-			err = json.Unmarshal(log, &message)
-			if err != nil {
-				message = *cypress.Log()
-				message.Add("message", log)
+				err = json.Unmarshal(log, &message)
+				if err != nil {
+					message = *cypress.Log()
+					message.AddString("message", string(log))
+				}
+
+				events = append(events, &message)
 			}
-
-			events = append(events, &message)
 		}
 
 		return events, nil
+	}
 
-	} else {
-		// Unknown error
+	return nil, nil
+}
+
+func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
+	opts := api.SetDefaultOptions(o)
+	url := api.EncodeURL(opts)
+
+	body, err := api.GetBody(url)
+	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println(string(body))
+
+	return NewEvents(body)
 }
 
 func milliseconds(t time.Time) int {
 	nanos := t.UnixNano()
 	millis := nanos / 1000000
 	return int(millis)
+}
+
+func (api *APIClient) BufferEvents(events []*cypress.Message) error {
+	for _, event := range events {
+		select {
+
+		case api.EventBuffer <- event:
+			api.Options.Start = milliseconds(event.GetTimestamp().Time())
+
+		default:
+			break
+		}
+	}
+
+	return nil
 }
 
 func (api *APIClient) Generate() (*cypress.Message, error) {
@@ -138,22 +186,13 @@ func (api *APIClient) Generate() (*cypress.Message, error) {
 			return nil, err
 		}
 
-		for _, event := range events {
-			select {
-
-			case api.EventBuffer <- event:
-				api.Options.Start = milliseconds(event.GetTimestamp().Time())
-
-			case <-time.After(time.Second * 1):
-				break
-			}
-		}
+		api.BufferEvents(events)
 
 		return api.Generate()
 	}
 }
 
 func (api *APIClient) Close() error {
-	// need to do anything here?
+	close(api.EventBuffer)
 	return nil
 }
