@@ -185,14 +185,14 @@ func (api *APIClient) Generate() (*cypress.Message, error) {
 	select {
 
 	case event := <-api.EventBuffer:
-		var message *cypress.Message
-		err := json.Unmarshal([]byte(event.Logmsg), message)
+		var message cypress.Message
+		err := json.Unmarshal([]byte(event.Logmsg), &message)
 		if err != nil {
-			message = cypress.Log()
+			message = *cypress.Log()
 			message.Add("message", event.Logmsg)
 		}
 
-		return message, nil
+		return &message, nil
 
 	case <-time.After(time.Second * 1):
 		return nil, nil
