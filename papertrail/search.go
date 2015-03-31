@@ -60,21 +60,44 @@ func NewAPIClient(token string, options *EventsOptions, bufferSize int) *APIClie
 	}
 }
 
-func (api *APIClient) Search(o *EventsOptions) ([]*Event, error) {
+func (api *APIClient) SetDefaultOptions(o *EventsOptions) *EventsOptions {
+	if o.Q == "" {
+		o.Q = api.Options.Q
+	}
+	if o.GroupId == "" {
+		o.GroupId = api.Options.GroupId
+	}
+	if o.SystemId == "" {
+		o.SystemId = api.Options.SystemId
+	}
+	if o.MinId == "" {
+		o.MinId = api.Options.MinId
+	}
+	if o.MaxId == "" {
+		o.MaxId = api.Options.MaxId
+	}
+	if o.MinTime == "" {
+		o.MinTime = api.Options.MinTime
+	}
+	if o.MaxTime == "" {
+		o.MaxTime = api.Options.MaxTime
+	}
+
+	return o
+}
+
+func (api *APIClient) EncodeURL(o *EventsOptions) string {
 	url := cAPIRoot
 
 	v, _ := query.Values(o)
 	if q := v.Encode(); q != "" {
 		url = url + "?" + q
-
-	} else {
-		// Use default options
-		v, _ = query.Values(api.Options)
-		if q = v.Encode(); q != "" {
-			url = url + "?" + q
-		}
 	}
 
+	return url
+}
+
+func (api *APIClient) GetBody(url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Add("X-Papertrail-Token", api.Token)
 
@@ -89,8 +112,13 @@ func (api *APIClient) Search(o *EventsOptions) ([]*Event, error) {
 		return nil, err
 	}
 
+	return body, err
+}
+
+func NewEvents(body []byte) ([]*Event, error) {
 	var events EventsResponse
-	err = json.Unmarshal(body, &events)
+
+	err := json.Unmarshal(body, &events)
 	if err != nil {
 		return nil, err
 	}
@@ -98,18 +126,50 @@ func (api *APIClient) Search(o *EventsOptions) ([]*Event, error) {
 	return events.Events, nil
 }
 
+func (api *APIClient) Search(o *EventsOptions) ([]*Event, error) {
+	opts := api.SetDefaultOptions(o)
+	url := api.EncodeURL(opts)
+
+	body, err := api.GetBody(url)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewEvents(body)
+}
+
+func NewCypressMessage(event *Event) (*cypress.Message, error) {
+	var message cypress.Message
+
+	err := json.Unmarshal([]byte(event.Message), &message)
+	if err != nil {
+		message = *cypress.Log()
+		message.Add("message", event.Message)
+	}
+
+	return &message, nil
+}
+
+func (api *APIClient) BufferEvents(events []*Event) error {
+	for _, event := range events {
+		select {
+
+		case api.EventBuffer <- event:
+			api.Options.MinId = event.Id
+
+		default:
+			break
+		}
+	}
+
+	return nil
+}
+
 func (api *APIClient) Generate() (*cypress.Message, error) {
 	select {
 
 	case event := <-api.EventBuffer:
-		var message cypress.Message
-		err := json.Unmarshal([]byte(event.Message), &message)
-		if err != nil {
-			message = *cypress.Log()
-			message.Add("message", event.Message)
-		}
-
-		return &message, nil
+		return NewCypressMessage(event)
 
 	case <-time.After(time.Second * 1):
 		return nil, nil
@@ -120,16 +180,7 @@ func (api *APIClient) Generate() (*cypress.Message, error) {
 			return nil, err
 		}
 
-		for _, event := range events {
-			select {
-
-			case api.EventBuffer <- event:
-				api.Options.MinId = event.Id
-
-			case <-time.After(time.Second * 1):
-				break
-			}
-		}
+		api.BufferEvents(events)
 
 		return api.Generate()
 	}
