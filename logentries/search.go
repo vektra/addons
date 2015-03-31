@@ -79,6 +79,8 @@ func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
 	var events EventsResponse
 	err = json.Unmarshal(body, &events)
 
+	fmt.Println(string(body))
+
 	if err == nil {
 		if events.Response == "error" {
 			message := fmt.Sprintf("Logentries error: %s", events.Response, events.Reason)
@@ -96,15 +98,15 @@ func (api *APIClient) Search(o *EventsOptions) ([]*cypress.Message, error) {
 
 		for i := 0; i < len(logs)-1; i++ {
 			log := logs[i]
-			var message *cypress.Message
+			var message cypress.Message
 
-			err = json.Unmarshal(log, message)
+			err = json.Unmarshal(log, &message)
 			if err != nil {
-				message = cypress.Log()
+				message = *cypress.Log()
 				message.Add("message", log)
 			}
 
-			events = append(events, message)
+			events = append(events, &message)
 		}
 
 		return events, nil
